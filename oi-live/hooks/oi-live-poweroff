@@ -1,0 +1,14 @@
+# Tento hook ma na starosti pohladanie swapu a jeho nasledne vyuzitie.
+
+. /oi-live-misc
+
+run_hook() {
+    # Ak user nechce, dame pokoj.
+    if [ -z "$poweroff" ]; then
+        return 0
+    fi
+
+    echo "Shutdown requested via the poweroff command line parameter."
+    sleep 5
+    echo 'o' > /proc/sysrq-trigger
+}

@@ -1,0 +1,25 @@
+# vim: set ft=sh:
+
+. /lib/initcpio/oi-live-misc
+
+build()
+{
+    MODULES="$OI_SUPPORTED_FS $(checked_modules /fs/nls/) squashfs aufs"
+    BINARIES=""
+    FILES=""
+    SCRIPT="oi-live"
+
+    add_file /lib/initcpio/oi-live-misc /oi-live-misc
+    add_dir /mnt
+    add_binary /sbin/ntfs-3g
+    add_binary /usr/sbin/udp-receiver
+}
+
+help()
+{
+cat<<HELPEOF
+  This hook sets up OI-Live. It depends on the following hooks:
+  net (has to be specified before this one)
+  fsck
+HELPEOF
+}

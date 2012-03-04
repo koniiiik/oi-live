@@ -1,0 +1,18 @@
+# vim: set ft=sh:
+
+build()
+{
+    MODULES=""
+    BINARIES=""
+    FILES=""
+    SCRIPT="oi-live-poweroff"
+    add_file /lib/initcpio/oi-live/oi-live-misc /oi-live-misc
+}
+
+help()
+{
+cat<<HELPEOF
+  This hook adds the oi-live-poweroff script which cuts the power if the
+  poweroff command line parameter is set.
+HELPEOF
+}

@@ -1,0 +1,316 @@
+. /oi-live-misc
+
+_debug_shell() {
+    if [ -n "$oi_debug" ]; then
+        echo "oi_debug parameter set, starting debug shell."
+        launch_interactive_shell
+    fi
+}
+
+# Params:
+# $1: device
+# $2: /path/to/mount/point
+# $3: mount options
+_try_mount() {
+    # Doesn't make any sense for non-block devices.
+    if ! [ -b "$1" ]; then
+        return 1
+    fi
+
+    local MYFS MOUNTCMD ID_FS_UUID ID_FS_UUID_ENC ID_FS_VERSION ID_FS_TYPE ID_FS_USAGE
+    MYFS=$(eval $(/sbin/blkid -o udev -p "$1"); echo $ID_FS_TYPE)
+    case "$MYFS" in
+    "ntfs")
+        # Use ntfs-3g instead of mount.
+        MOUNTCMD="ntfs-3g -o $3,force,silent,umask=0,no_def_opts,allow_other,streams_interface=windows $1 $2"
+        ;;
+    *)
+        MOUNTCMD="/bin/mount -t $MYFS -o $3 $1 $2"
+        ;;
+    esac
+    if $MOUNTCMD >/dev/null 2>&1; then
+        return 0
+    fi
+    /bin/umount $2 >/dev/null 2>&1
+
+    return 1
+}
+
+# Mounts the topmost filesystem containing all the required image files.
+_mount_topmost_filesystem () {
+    local DEVICES CDROMS HDDS MYDEV
+    CDROMS="/dev/sr? /dev/scd? /dev/scd?? /dev/sd? /dev/hd?"
+    HDDS="/dev/sd?[1-9] /dev/sd?[1-9][0-9] /dev/hd?[1-9] /dev/hd?[1-9][0-9]"
+
+    # Depending on the kernel cmdline, choose the right search order.
+    if [ -z "$fromcd" ]; then
+        DEVICES="$HDDS $CDROMS"
+    else
+        DEVICES="$CDROMS $HDDS"
+    fi
+
+    # If an oi_root parameter was specified, ignore all other options.
+    if [ -n "$oi_root" ]; then
+        DEVICES="$oi_root"
+    fi
+
+    # Mount a tmpfs over /mnt so we can bind and move it later.
+    mount -t tmpfs tmpfs /mnt
+    mkdir -p "$OI_MOUNTPOINT"
+
+    for MYDEV in $DEVICES; do
+        # Attempt a read-only mount first. We need this to be able to
+        # mount CD/DVD.
+        echo -n "Trying to mount $MYDEV read-only... "
+        if ! _try_mount "$MYDEV" "$OI_MOUNTPOINT" "ro"; then
+            echo "failed."
+        else
+            echo "success."
+            if [ -z "$install" ]; then
+                # Unless we're going to install, search for our files.
+                if [ -r "$OI_MOUNTPOINT/$OI_LIVE_IMAGE" ]; then
+                    echo "Found $OI_LIVE_IMAGE on $MYDEV."
+                    echo -n "Trying to remount read-write... "
+                    /bin/umount "$MYDEV" >/dev/null 2>&1
+                    if ! _try_mount "$MYDEV" "$OI_MOUNTPOINT" "rw"; then
+                        echo "failed. Remounting read-only again."
+                        if ! _try_mount "$MYDEV" "$OI_MOUNTPOINT" "ro"; then
+                            echo "Something went really wrong, can't even remount read-only again."
+                            echo "Giving up."
+                        else
+                            return 0
+                        fi
+                    else
+                        echo "success."
+                        return 0
+                    fi
+                else
+                    echo "$OI_LIVE_IMAGE not found on $MYDEV."
+                fi
+            else
+                # If we're installing, read-write is a necessity.
+                echo -n "Trying to remount read-write... "
+                umount "$MYDEV" >/dev/null 2>&1
+                if ! _try_mount "$MYDEV" "$OI_MOUNTPOINT" "rw"; then
+                    echo "failed."
+                else
+                    echo "success."
+                    return 0
+                fi
+            fi
+        fi
+        umount "$MYDEV" >/dev/null 2>&1
+    done
+
+    if [ -z "$install" ]; then
+        echo "Failed to find $OI_LIVE_IMAGE on any available filesystem."
+        echo "Aborting."
+        oi_abort
+    fi
+
+    echo "Failed to mount a read-write filesystem. Aborting."
+    oi_abort
+}
+
+_uninstall() {
+    echo -n "Removing all OI-Live files from the disk... "
+    rm -f "$OI_MOUNTPOINT/$OI_LIVE_IMAGE" "$OI_MOUNTPOINT/$OI_RW_IMAGE" "$OI_MOUNTPOINT/$OI_SWAPFILE" "$OI_MOUNTPOINT/"$OI_LIVE_UPDATES
+    echo "done."
+}
+
+_install() {
+    local INTERFACES MYIFACE OLDWD i
+
+    echo "Going to install OI-Live onto hard drive..."
+
+    INTERFACES=$(ls /sys/class/net)
+
+    # Find the interface with an IP address.
+    for i in $INTERFACES; do
+        if [ "$i" != "lo" ] && (ifconfig "$i" | grep 'inet addr:'); then
+            MYIFACE="$i"
+        fi
+    done
+
+    OLDWD="$PWD"
+    cd "$OI_MOUNTPOINT"
+    if [ -z "$wget" ]; then
+        # Unless we got the wget param, use multicast.
+        if udp-receiver --interface "$MYIFACE" --nokbd | tar xzf -; then
+            echo "Finished."
+        else
+            echo "An error occured."
+        fi
+    else
+        # Using wget; determine whether we have been passed an URL.
+        if [ "$wget" != "y" ]; then
+            # Dostali sme.
+            WGET_URL="$wget"
+        else
+            # Use the default URL on the dateway.
+            GW=$(route -n | grep "^0.0.0.0" | head -n1 | awk '{ print $2; }')
+            WGET_URL="http://$GW/$OI_URL"
+        fi
+        if wget -O - "$WGET_URL" | tar xzf -; then
+            echo "Finished."
+        else
+            echo "An error occured."
+        fi
+    fi
+    cd "$OLDWD"
+
+    # Unless swap was forbidden, create a swapfile.
+    if [ -z "$noswap" ]; then
+        echo "Creating swapfile $OI_SWAPFILE..."
+        dd if=/dev/zero of="$OI_MOUNTPOINT/$OI_SWAPFILE" bs=1M count="$OI_SWAPFILE_SIZE"
+        mkswap "$OI_MOUNTPOINT/$OI_SWAPFILE"
+        echo "Finished."
+    fi
+}
+
+_activate_swap() {
+    local PARTITIONS FSTYPE FSSIZE i
+    PARTITIONS=$(tail -n +3 < /proc/partitions | awk '{print $4}')
+
+    # Find any existing swap partitions.
+    for i in $PARTITIONS; do
+        FSTYPE=$(eval $(/sbin/blkid -o udev -p "${root}"); echo $ID_FS_TYPE)
+        #eval "$(fstype "/dev/$i")"
+        if [ "$FSTYPE" = "swap" ]; then
+            echo "Using swap partition /dev/$i."
+            swapon "/dev/$i"
+        fi
+    done
+
+    # Use the swapfile if it's there.
+    if [ -f "$OI_MOUNTPOINT/$OI_SWAPFILE" ]; then
+        echo "Using swapfile $OI_MOUNTPOINT/$OI_SWAPFILE."
+        swapon "$OI_MOUNTPOINT/$OI_SWAPFILE"
+    fi
+}
+
+# Mounts all the filesystem images (squashfs and others) and creates an
+# aufs on top of them.
+# Params:
+# $1: new root
+_mount_images_and_aufs() {
+    local ret oi_update next_free_loop update_mpt update_branches
+    local newroot="$1"
+    # Populate /mnt with mount points.
+    mkdir /mnt/rwpart
+    mkdir /mnt/oi-image
+    mkdir "$OI_UPDATE_MNTPTS"
+
+    # Mount the main squashfs into /mnt/oi-image
+    echo -n "Mounting $OI_MOUNTPOINT/$OI_LIVE_IMAGE... "
+    if ! ( losetup /dev/loop0 "$OI_MOUNTPOINT/$OI_LIVE_IMAGE" && mount -o ro -t squashfs /dev/loop0 /mnt/oi-image ) >/dev/null 2>&1; then
+        echo "Failed to mount OI image. Aborting."
+        oi_abort
+    fi
+    echo "done."
+
+    # Mount the R/W image if allowed.
+    if [ -z "$use_ramdisk" -a -f "$OI_MOUNTPOINT/$OI_RW_IMAGE" ]; then
+        echo -n "Mounting $OI_MOUNTPOINT/$OI_RW_IMAGE... "
+        losetup /dev/loop1 "$OI_MOUNTPOINT/$OI_RW_IMAGE"
+        fsck_device /dev/loop1
+        ret=$?
+        if [ ${ret} -gt 1 ]; then
+            echo "R/W filesystem check failed, aborting."
+            oi_abort
+        fi
+        if ! (
+            mount -o rw -t ext3 "/dev/loop1" /mnt/rwpart >/dev/null 2>&1
+        ); then
+            mount -t tmpfs tmpfs /mnt/rwpart
+            echo "failed. Using only ramdisk..."
+        else
+            if [ -n "$clean" ]; then
+                echo -n "Cleaning user changes... "
+                rm -rf /mnt/rwpart/* /mnt/rwpart/.*
+                echo "done."
+            fi
+            echo "done."
+        fi
+    fi
+
+    # If any update images are available, mount them as well.
+    update_branches=""
+    for oi_update in "$OI_MOUNTPOINT/"$OI_LIVE_UPDATES; do
+        [ -f "$oi_update" ] || break
+        echo -n "Mounting update $oi_update... "
+        next_free_loop="$(losetup -f)"
+        update_mpt="${OI_UPDATE_MNTPTS}/${next_free_loop#/dev/loop}"
+        mkdir -p "$update_mpt"
+        if ! ( losetup "$next_free_loop" "$oi_update" && mount -o ro -t squashfs "$next_free_loop" "$update_mpt" ) >/dev/null 2>&1; then
+            echo "failed (ignoring)."
+        else
+            echo "done."
+            # Build a list of branches for aufs. This is mainly for
+            # historical reasons; neither busybox mount nor klibc mount
+            # could remount aufs with more branches.
+            update_branches=":${update_mpt}=rr${update_branches}"
+        fi
+    done
+
+    mount -t aufs -o
+    "br=/mnt/rwpart=rw${update_branches}:/mnt/oi-image=rr" aufs "${newroot}"
+
+    echo -n "Binding OI-Live filesystems into new root filesystem... "
+    mount --bind /mnt "${newroot}/mnt" >/dev/null 2>&1
+    mount --bind /mnt/oi_root "${newroot}/mnt/oi_root" >/dev/null 2>&1
+    mount --bind /mnt/oi-image "${newroot}/mnt/oi-image" >/dev/null 2>&1
+    mount --bind "$OI_UPDATE_MNTPTS" "${newroot}${OI_UPDATE_MNTPTS}" >/dev/null 2>&1
+    for update_mpt in "$OI_UPDATE_MNTPTS"/*; do
+        [ -f "$update_mpt" ] || break
+        mount --bind "$update_mpt" "${newroot}${update_mpt}" >/dev/null
+    done
+    mount --bind /mnt/rwpart "${newroot}/mnt/rwpart" >/dev/null 2>&1
+    echo "done."
+
+    # We need to do this to prevent rc.sysinit from remounting /
+    # read-only -- aufs can't recover from that...
+    echo -n "Marking root filesystem as initramfs-checked... "
+    mount -t tmpfs run "${newroot}/run" -o mode=0755,nosuid,nodev
+    mkdir -p "${newroot}/run/initramfs"
+    touch "${newroot}/run/initramfs/fsck-root"
+    echo "done."
+}
+
+# Params:
+# $1: expected root mount point
+oi_live_mount_handler() {
+    _debug_shell
+
+    _mount_topmost_filesystem
+
+    _debug_shell
+
+    if [ -n "$uninstall" ]; then
+        _uninstall
+    fi
+
+    _debug_shell
+
+    if [ -n "$install" ]; then
+        _install
+    fi
+
+    _debug_shell
+
+    if [ -z "$noswap" ]; then
+        _activate_swap
+    fi
+
+    _debug_shell
+
+    _mount_images_and_aufs
+
+    _debug_shell
+}
+
+run_hook() {
+    mount_handler="oi_live_mount_handler"
+    # fscking the root device doesn't make much sense in our case...
+    skipfsck=y
+}
