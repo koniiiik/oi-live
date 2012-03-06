@@ -1,0 +1,6 @@
+* write solid docs
+* add configs for mkinitcpio, {sys,pxe,iso}linux and possibly others
+  * make use of syslinux's whichsys
+* explore the Arch shutdown initramfs interface to umount filesystems
+  safely
+* write some scripts to automate image creation
