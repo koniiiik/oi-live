@@ -253,8 +253,9 @@ _mount_images_and_aufs() {
         fi
     done
 
-    mount -t aufs -o
-    "br=/mnt/rwpart=rw${update_branches}:/mnt/oi-image=rr" aufs "${newroot}"
+    echo -n "Mounting root aufs into ${newroot}... "
+    mount -t aufs -o "br=/mnt/rwpart=rw${update_branches}:/mnt/oi-image=rr" aufs "${newroot}"
+    echo "done."
 
     echo -n "Binding OI-Live filesystems into new root filesystem... "
     mount --bind /mnt "${newroot}/mnt" >/dev/null 2>&1
@@ -304,7 +305,7 @@ oi_live_mount_handler() {
 
     _debug_shell
 
-    _mount_images_and_aufs
+    _mount_images_and_aufs "$1"
 
     _debug_shell
 }
