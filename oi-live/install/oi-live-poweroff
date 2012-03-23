@@ -6,7 +6,7 @@ build()
     BINARIES=""
     FILES=""
     SCRIPT="oi-live-poweroff"
-    add_file /lib/initcpio/oi-live-misc /oi-live-misc
+    add_file /usr/lib/initcpio/oi-live-misc /oi-live-misc
 }
 
 help()

@@ -1,6 +1,6 @@
 # vim: set ft=sh:
 
-. /lib/initcpio/oi-live-misc
+. /usr/lib/initcpio/oi-live-misc
 
 build()
 {
@@ -9,7 +9,7 @@ build()
     FILES=""
     SCRIPT="oi-live"
 
-    add_file /lib/initcpio/oi-live-misc /oi-live-misc
+    add_file /usr/lib/initcpio/oi-live-misc /oi-live-misc
     add_dir /mnt
     add_binary /bin/ntfs-3g
     add_binary /usr/sbin/udp-receiver
