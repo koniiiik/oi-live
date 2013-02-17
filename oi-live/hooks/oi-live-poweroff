@@ -1,9 +1,6 @@
-# Tento hook ma na starosti pohladanie swapu a jeho nasledne vyuzitie.
-
 . /oi-live-misc
 
-run_hook() {
-    # Ak user nechce, dame pokoj.
+run_earlyhook() {
     if [ -z "$poweroff" ]; then
         return 0
     fi
