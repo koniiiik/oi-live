@@ -4,15 +4,18 @@
 
 build()
 {
-    MODULES="$OI_SUPPORTED_FS fuse $(checked_modules /fs/nls/) squashfs aufs"
-    BINARIES=""
-    FILES=""
-    SCRIPT="oi-live"
+
+    map add_module $OI_SUPPORTED_FS
+    add_module fuse
+    add_module squashfs
+    add_module aufs
+    add_checked_modules fs/nls
 
     add_file /usr/lib/initcpio/oi-live-misc /oi-live-misc
     add_dir /mnt
-    add_binary /usr/bin/ntfs-3g
-    add_binary /usr/sbin/udp-receiver
+    add_binary ntfs-3g
+    add_binary udp-receiver
+    add_runscript
 }
 
 help()

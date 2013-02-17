@@ -2,10 +2,7 @@
 
 build()
 {
-    MODULES=""
-    BINARIES=""
-    FILES=""
-    SCRIPT="oi-live-poweroff"
+    add_runscript
     add_file /usr/lib/initcpio/oi-live-misc /oi-live-misc
 }
 
