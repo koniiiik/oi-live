@@ -4,7 +4,7 @@
 
 build()
 {
-    MODULES="$OI_SUPPORTED_FS $(checked_modules /fs/nls/) squashfs aufs"
+    MODULES="$OI_SUPPORTED_FS fuse $(checked_modules /fs/nls/) squashfs aufs"
     BINARIES=""
     FILES=""
     SCRIPT="oi-live"
