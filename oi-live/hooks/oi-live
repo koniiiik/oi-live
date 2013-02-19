@@ -272,9 +272,8 @@ _mount_images_and_aufs() {
     # We need to do this to prevent rc.sysinit from remounting /
     # read-only -- aufs can't recover from that...
     echo -n "Marking root filesystem as initramfs-checked... "
-    mount -t tmpfs run "${newroot}/run" -o mode=0755,nosuid,nodev
-    mkdir -p "${newroot}/run/initramfs"
-    touch "${newroot}/run/initramfs/fsck-root"
+    mkdir -p "/run/initramfs"
+    touch "/run/initramfs/fsck-root"
     echo "done."
 }
 
