@@ -14,6 +14,7 @@ build()
     add_file /usr/lib/initcpio/oi-live-misc /oi-live-misc
     add_dir /mnt
     add_binary ntfs-3g
+    add_binary /usr/lib/initcpio/ntfs-3g-initrd-wrapper /usr/bin/ntfs-3g-initrd-wrapper
     add_binary udp-receiver
     add_runscript
 }

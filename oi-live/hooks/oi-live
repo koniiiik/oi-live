@@ -22,7 +22,7 @@ _try_mount() {
     case "$MYFS" in
     "ntfs")
         # Use ntfs-3g instead of mount.
-        MOUNTCMD="ntfs-3g -o $3,force,silent,umask=0,no_def_opts,allow_other,streams_interface=windows $1 $2"
+        MOUNTCMD="ntfs-3g-initrd-wrapper -o $3,force,silent,umask=0,no_def_opts,allow_other,streams_interface=windows $1 $2"
         ;;
     *)
         MOUNTCMD="/bin/mount -t $MYFS -o $3 $1 $2"
