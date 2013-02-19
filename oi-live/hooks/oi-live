@@ -313,4 +313,5 @@ run_hook() {
     mount_handler="oi_live_mount_handler"
     # fscking the root device doesn't make much sense in our case...
     skipfsck=y
+    fastboot=y
 }
