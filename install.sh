@@ -4,6 +4,7 @@
 
 FILES="
 oi-live-misc
+shutdown-oi-live
 install/oi-live
 install/oi-live-poweroff
 hooks/oi-live

@@ -315,3 +315,9 @@ run_hook() {
     skipfsck=y
     fastboot=y
 }
+
+# Taken verbatim from the shutdown hook.
+run_cleanuphook() {
+    rm -rf /usr/lib/modules
+    cp -ax / /run/initramfs
+}
